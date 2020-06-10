@@ -46,7 +46,7 @@ extern "C"
 {
 	__declspec(dllexport) void main()
 	{
-		MessageBox(NULL, _T("已经注入红色警戒3"), _T("来自坚老哥的提示"), NULL);
+		MessageBox(NULL, _T("已经注入红色警戒3"), _T("提示"), NULL);
 
 
 		myip = new in_addr;// 0xc0a86405; //192.168.100.5
