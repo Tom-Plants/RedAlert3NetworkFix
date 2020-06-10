@@ -48,6 +48,7 @@ typedef VOID (*MAIN)();
 #pragma check_stack (off)
 DWORD WINAPI RemoteThreadProc(LPVOID lpParam)
 {
+
 	char msgboxName[] = { 'M', 'e', 's', 's', 'a', 'g', 'e', 'B', 'o', 'x', 'A', '\0' };
 	char kernelName[] = { 'k', 'e', 'r', 'n', 'e', 'l', '3', '2', '.', 'd', 'l', 'l', '\0' };
 	char loadlibName[] = { 'L', 'o', 'a', 'd', 'L', 'i', 'b', 'r', 'a', 'r', 'y', 'A', '\0' };
@@ -58,8 +59,19 @@ DWORD WINAPI RemoteThreadProc(LPVOID lpParam)
 	LPLOADLIBRARYA loadLibraryA = NULL;
 	MAIN m = NULL;
 
-	GETPROCADDRESS getProcAddress = (GETPROCADDRESS)0x765962d0;
-	GETMODULEHANDLE getMoudleHandle = (GETMODULEHANDLE)0x765994d0;
+	GETPROCADDRESS getProcAddress = (GETPROCADDRESS)*(unsigned long*)lpParam;
+	GETMODULEHANDLE getMoudleHandle = (GETMODULEHANDLE)*((unsigned char*)lpParam + 4);
+
+	_asm{
+		mov eax, lpParam
+		mov ebx, [eax]
+		mov getProcAddress, ebx
+
+		add eax, 4
+		mov ebx, [eax]
+		mov getMoudleHandle, ebx
+	}
+
 
 	HMODULE kernel32module = getMoudleHandle(kernelName);
 
@@ -94,11 +106,33 @@ int main(void)
 	}
 
 
+	int* getProcAddress = (int*)GetProcAddress;
+	int* getMoudleHandle = (int*)GetModuleHandleA;
+
+
 	HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
-	LPVOID remoteMem = VirtualAllocEx(hProcess, NULL, 1024, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);	//申请1K地址
-
-
 	DWORD dwSize = ((BYTE *)(DWORD)afterFunc - (BYTE *)(DWORD)RemoteThreadProc);
+
+	LPVOID remoteMem = VirtualAllocEx(hProcess, NULL, dwSize + 8, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);	//申请1K地址
+
+	if (WriteProcessMemory(hProcess, (unsigned char*)remoteMem + dwSize, (LPVOID)&getProcAddress, 4, NULL))
+	{
+		printf("写入GetProcAddress的地址完成\n");
+	}
+	else
+	{
+		printf("写入GetProcAddress的地址失败\n");
+	}
+
+	if (WriteProcessMemory(hProcess, (unsigned char*)remoteMem + dwSize + 4, (LPVOID)&getMoudleHandle, 4, NULL))
+	{
+		printf("写入GetModuleHandleA的地址完成\n");
+	}
+	else
+	{
+		printf("写入GetModuleHandleA的地址失败\n");
+	}
+	
 	if (WriteProcessMemory(hProcess, remoteMem, RemoteThreadProc, dwSize, NULL) == TRUE)
 	{
 		printf("写入完成\n");
@@ -107,7 +141,7 @@ int main(void)
 	{
 		printf("写入失败\n");
 	}
-	CreateRemoteThread(hProcess, NULL, NULL, (LPTHREAD_START_ROUTINE)remoteMem, NULL, NULL, NULL);
+	CreateRemoteThread(hProcess, NULL, NULL, (LPTHREAD_START_ROUTINE)remoteMem, (unsigned char*)remoteMem + dwSize, NULL, NULL);
 
 
 
